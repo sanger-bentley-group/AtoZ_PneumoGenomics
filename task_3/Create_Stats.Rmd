@@ -273,9 +273,10 @@ AR_props <- subset(merged_data, select = c("Vaccine_Period", "Vaccine_Status", g
 
 #Convert back to a data frame
 AR_props <- data.frame(AR_props)
-# To analyse the data considering consider NVTs only or VTs (PCV serotypes) only, subset the data to include only NVTs and VTs.
-#AR_props <- subset(AR_props, AR_props$Vaccine_Status %in% c("NVT"))
-#AR_props <- subset(AR_props, AR_props$Vaccine_Status %in% c("PCV"))
+
+## To analyse the data considering consider NVTs only or VTs (PCV serotypes) only, subset the data to include only NVTs and VTs.
+# AR_props <- subset(AR_props, AR_props$Vaccine_Status %in% c("NVT"))
+# AR_props <- subset(AR_props, AR_props$Vaccine_Status %in% c("PCV"))
 ```
 
 ## Create an output dataframe to store the results
