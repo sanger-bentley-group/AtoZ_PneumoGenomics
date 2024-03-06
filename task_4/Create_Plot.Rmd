@@ -1,0 +1,391 @@
+---
+title: "Create Plot"
+output: html_document
+date: "2024-03-05"
+purpose: Generating the prevalence of GPSC and Serotype in different vaccination periods, and AMR profile for each GPSC
+---
+
+------------------------------------------------------------------------
+
+# Generating the prevalence of GPSC and serotype in different vaccination periods
+
+## Install and load required packages
+
+These are the packages required for the R script session.
+
+```{r install packages}
+#install.packages("ggplot2")
+#install.packages("ggpattern")
+
+library(ggplot2)
+library(ggpattern)
+```
+
+## Functions
+
+This function is to generate a frequency table based on **GPSC**, **Serotype** and **Vaccine_Period**.
+
+```{r load functions}
+Generate_GPSC_Serotype_Vaccine_Freqtable <- function(metadata_df,
+                                                     pair_colname1 = "GPSC", pair_colname2 = "In_Silico_Serotype",
+                                                     pair_colname3 = "Vaccine_Period",
+                                                     n_output_col = 6,
+                                                     output_colnames = c("GPSC", "Serotype", "Vaccine_Period", "Count", "Proportion", "Pair_Name")) {
+  for (isolate in 1:nrow(metadata_df)) {
+    metadata_df[isolate, "pair"] <- paste(metadata_df[isolate, pair_colname1],
+                                         metadata_df[isolate, pair_colname2],
+                                         metadata_df[isolate, pair_colname3], sep = "_")
+  }
+  pair_freq <- as.data.frame(table(metadata_df$pair))
+  colnames(pair_freq) <- c("name", "freq")
+  
+  dsize <- matrix(0, nrow = nrow(pair_freq), ncol = n_output_col)
+  gpsc_sero_vacperiod_df <- as.data.frame(dsize)
+  colnames(gpsc_sero_vacperiod_df) <- output_colnames
+  
+  for (i in 1:nrow(pair_freq)) {
+    gpsc <- strsplit(as.character(pair_freq[i, 1]), "_")[[1]][1]
+    pair_freq$gpsc[i] <- gpsc
+    sero <- strsplit(as.character(pair_freq[i, 1]), "_")[[1]][2]
+    vac_period <- strsplit(as.character(pair_freq[i, 1]), "_")[[1]][3]
+    gpsc_sero_vacperiod_df[i, "GPSC"] <- gpsc
+    gpsc_sero_vacperiod_df[i, "Serotype"] <- sero
+    gpsc_sero_vacperiod_df[i, "Vaccine_Period"] <- vac_period
+    gpsc_sero_vacperiod_df[i, "Pair_Name"] <- as.character(pair_freq[i, "name"])
+    
+  }
+  uniq_pair <- unique(metadata_df$pair)
+  ### each row is a population-serotype-gpsc pair
+  num_pre_vac <- length(which(metadata_df[, pair_colname3] == "Pre-PCV"))
+  num_PCV7 <- length(which(metadata_df[, pair_colname3] == "PCV7"))
+  num_PCV13 <- length(which(metadata_df[, pair_colname3] == "PCV13"))
+  
+  for (p in uniq_pair){
+    selected_pair <- metadata_df[which(metadata_df$pair == p), ]
+    t_count <- nrow(selected_pair)
+    gpsc_sero_vacperiod_df[which(gpsc_sero_vacperiod_df$Pair_Name == p), "Count"] <- t_count
+    if (gpsc_sero_vacperiod_df[which(gpsc_sero_vacperiod_df$Pair_Name == p), "Vaccine_Period"] == "pre-PCV") {
+      gpsc_sero_vacperiod_df[which(gpsc_sero_vacperiod_df$Pair_Name == p), "Proportion"] <- t_count / num_pre_vac
+    } else if (gpsc_sero_vacperiod_df[which(gpsc_sero_vacperiod_df$Pair_Name == p), "Vaccine_Period"] == "PCV7") {
+      gpsc_sero_vacperiod_df[which(gpsc_sero_vacperiod_df$Pair_Name == p), "Proportion"] <- t_count / num_PCV7
+    } else {
+      gpsc_sero_vacperiod_df[which(gpsc_sero_vacperiod_df$Pair_Name == p), "Proportion"] <- t_count / num_PCV13
+    }
+  }
+  
+  return(gpsc_sero_vacperiod_df)
+}
+```
+
+## Load input data
+
+The `serotype__colours_patterns.csv` file include the information about the colour coding for each serotype as well as the vaccine type information.\
+Note that the vaccine type information is based on PCV13 implemented in Argentina, which might need some adjustment for your studied population.
+
+```{r load dataset}
+# set base path for working directory
+base_path <- getwd()
+
+# set import file names
+merged_data_file_name <- "merged_data.csv"
+serotype_colorcode_file_name <- "serotype__colours_patterns.csv"
+
+# set data file paths
+merged_data_file_path <- file.path(base_path, merged_data_file_name)
+serotype_colorcode_file_path <- file.path(base_path, serotype_colorcode_file_name)
+
+# load input data
+merged_data <- read.csv(merged_data_file_path)
+colnames(merged_data)[colnames(merged_data) == "Serotype"] <- "In_Silico_Serotype" # rename column Serotype to In_Silico_Serotype for the script
+data_frame <- as.data.frame(merged_data)
+serotype_colorcode <- read.table(serotype_colorcode_file_path,
+                                 sep = ",", comment.char = "&", header = TRUE)
+```
+
+## Check if terminology is consistent
+
+```{r check terms}
+data_frame[which(data_frame$GPSC == "_"), "GPSC"] <- "Others"
+data_frame[which(data_frame$GPSC == "904;9"), "GPSC"] <- "9"
+data_frame[which(data_frame$In_Silico_Serotype == "_"), "In_Silico_Serotype"] <- "NT"
+## Might need to check Vaccine Period
+```
+
+## Transform into frequency table
+
+In the output table, each row is a unique combination of GPSC-Serotype-Vaccine_Period. Note that the column names for GPSC, Serotype, and Vaccine_Period should be:
+
+-   GPSC: "GPSC", otherwise please specify the column names by *pair_colname1="Your_GPSC_Column_Name"*\
+-   Serotype: "In_Silico_Serotype", otherwise please specify the column names by *pair_colname2="Your_Serotype_Column_Name"*\
+-   Vaccine_Period: "Vaccine_Period", otherwise please specify the column names by *pair_colname2="Your_Vaccine_Period_Column_Name"*
+
+```{r}
+## Need to generate/transform the dataframe to each row as a GPSC-Serotype-Vaccine_Period pair with corresponding count/proportion
+GPS_freq_table <- Generate_GPSC_Serotype_Vaccine_Freqtable(metadata_df = data_frame,
+                                                           pair_colname1 = "GPSC",
+                                                           pair_colname2 = "In_Silico_Serotype",
+                                                           pair_colname3 = "Vaccine_Period")
+
+# Add serotype colour coding information to the frequency table
+GPS_freq_table_sero_code_merge_gpsc <- merge(GPS_freq_table, serotype_colorcode, by = "Serotype")
+
+# Merge rare GPSC to "Others"
+target_gpsc <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12", "13", "15", "16", "18", "23", "26", "31",
+                 "32", "37", "44", "47", "50", "61", "70", "95", "113", "386", "657")
+GPS_freq_table_sero_code_merge_gpsc[which(!GPS_freq_table_sero_code_merge_gpsc$GPSC %in% target_gpsc), "GPSC"] <- "Others"
+
+head(GPS_freq_table_sero_code_merge_gpsc)
+```
+
+## Setting the axis order for the plot
+
+```{r}
+### Set GPSC order
+GPSC_order <- c(target_gpsc, "Others")
+GPS_freq_table_sero_code_merge_gpsc$GPSC <- factor(GPS_freq_table_sero_code_merge_gpsc$GPSC, levels = GPSC_order)
+
+### Set vaccine period order
+vaccine_period_order <- c("Pre-PCV", "PCV7", "PCV13")
+GPS_freq_table_sero_code_merge_gpsc$Vaccine_Period <- factor(GPS_freq_table_sero_code_merge_gpsc$Vaccine_Period, levels = vaccine_period_order)
+GPS_freq_table_sero_code_merge_gpsc$Serotype <- as.factor(GPS_freq_table_sero_code_merge_gpsc$Serotype)
+
+### Set serotype colour order
+filled_colours <- GPS_freq_table_sero_code_merge_gpsc$Serotype__colour
+names(filled_colours) <- GPS_freq_table_sero_code_merge_gpsc$Serotype
+
+### Set serotype pattern order
+filled_patterns <- GPS_freq_table_sero_code_merge_gpsc$ggpattern
+names(filled_patterns) <- GPS_freq_table_sero_code_merge_gpsc$Vtype
+```
+
+## Generate GPSC-Serotype-Vaccine_Period proportion plot
+
+```{r}
+GPS_freq_table_plot <- ggplot(GPS_freq_table_sero_code_merge_gpsc, aes(x = Vaccine_Period, y = Proportion, fill = Serotype, pattern = Vtype)) + #fill=Serotype, pattern=Serotype
+  geom_bar_pattern(position = "stack", stat = "identity", pattern_density = 0.2, pattern_spacing = 0.2, pattern_key_scale_factor = 1.2, pattern_size = 0) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 20),
+        axis.text.y = element_text(size = 25),
+        axis.title.x = element_text(size = 25),
+        axis.title.y = element_text(size = 25),
+        legend.text = element_text(size = 20),
+        legend.title = element_text(size = 25),
+        plot.caption = element_text(size = 25)) +
+  theme(strip.placement = "outside",
+        strip.background = element_rect(fill = NA, color = "white"),
+        strip.text = element_text(size = 25),
+        panel.spacing = unit(-.01, "cm"),
+        panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(),
+        legend.key.size = unit(0.8, "cm")) +
+  xlab("GPSC") +
+  ylim(c(0, 0.3)) +
+  facet_grid(~ GPSC, switch = "x") +
+  scale_fill_manual(values = filled_colours) +
+  scale_pattern_manual(values = filled_patterns, guide = "none") +
+  labs(caption = "*Non-PCV13 Type are labeled with stripes")
+
+#GPS_freq_table_plot
+```
+
+## Save plot to .png file
+
+```{r}
+output_path <- file.path(base_path, "GPS_freq_table_plot.png")
+png(output_path, width = 2500, height = 1000)
+GPS_freq_table_plot
+dev.off()
+```
+
+------------------------------------------------------------------------
+
+# AMR profile for each GPSC
+
+## Install and load required packages
+
+These are the packages required for the R script session.
+
+```{r install packages}
+#install.packages("ggplot2")
+#install.packages("dplyr")
+#install.packages("tidyr")
+#install.packages("gridExtra")
+#install.packages("scales")
+#install.packages("cowplot")
+
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(gridExtra)
+library(scales)
+library(cowplot)
+```
+
+## Functions
+
+This function is to generate a frequency table based on **GPSC**, **Serotype** and, **Vaccine_Period**.
+
+```{r load functions}
+percent_amr <- function(amr_df, amr, ris = c("I", "R")) {
+  num_pen_men_r <- length(which(amr_df[, amr] %in% ris))
+  pen_men_percent <- num_pen_men_r / nrow(amr_df)
+  return(pen_men_percent)
+}
+```
+
+## Load input data
+
+```{r load dataset}
+# set base path for working directory
+base_path <- getwd()
+
+# set import file name
+merged_data_file_name <- "merged_data.csv"
+
+# set data file path
+merged_data_file_path <- file.path(base_path, merged_data_file_name)
+
+# Load input data
+merged_data <- read.csv(merged_data_file_path)
+data_frame <- as.data.frame(merged_data)
+
+# Select necessary columns: GPSC, PEN_Res(Meningital), CHL_Res, TET_Res, COT_Res, mefA, ermB
+AMRs <- c("PEN_Res.Meningital.", "CHL_Res", "TET_Res", "COT_Res", "ERY_Res")
+AMR_data_frame <- data_frame[, c("GPSC", AMRs)]
+
+# Merge other GPSCs
+target_gpsc <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12", "13", "15", "16", "18", "23", "26", "31",
+                 "32", "37", "44", "47", "50", "61", "70", "95", "113", "386", "657")
+
+AMR_data_frame_merge_gpsc <- AMR_data_frame
+AMR_data_frame_merge_gpsc[which(!AMR_data_frame_merge_gpsc$GPSC %in% target_gpsc), "GPSC"] <- "Others"
+```
+
+## Generate GPSC-AMR_percentage table
+
+```{r AMR percentage table}
+output_colnames <- c("GPSC", "PEN_MEN", "CHL", "TET", "COT", "ERY")
+unique_gpsc <- unique(AMR_data_frame_merge_gpsc$GPSC)
+dsize <- matrix(0, nrow = length(unique_gpsc), ncol = ncol(AMR_data_frame))
+AMR_percentage_df <- as.data.frame(dsize)
+colnames(AMR_percentage_df) <- output_colnames
+
+IR <- c("I", "R")
+
+for (i in 1:length(unique_gpsc)){
+  gpsci <- unique_gpsc[i]
+  gpsc_df <- AMR_data_frame_merge_gpsc[which(AMR_data_frame_merge_gpsc$GPSC == gpsci), ]
+  #PEN_MEN
+  percent_PEN_MEN <- percent_amr(amr_df = gpsc_df, amr = AMRs[1], ris = IR)
+  #CHL
+  percent_CHL <- percent_amr(amr_df = gpsc_df, amr = AMRs[2], ris = IR)
+  #TET
+  percent_TET <- percent_amr(amr_df = gpsc_df, amr = AMRs[3], ris = IR)
+  #COT
+  percent_COT <- percent_amr(amr_df = gpsc_df, amr = AMRs[4], ris = IR)
+  #ermB
+  percent_ERY <- percent_amr(amr_df = gpsc_df, amr = AMRs[5], ris = IR)
+
+  AMR_percentage_df[i, "GPSC"] <- gpsci
+  AMR_percentage_df[i, "PEN_MEN"] <- percent_PEN_MEN
+  AMR_percentage_df[i, "CHL"] <- percent_CHL
+  AMR_percentage_df[i, "TET"] <- percent_TET
+  AMR_percentage_df[i, "COT"] <- percent_COT
+  AMR_percentage_df[i, "ERY"] <- percent_ERY
+}
+
+# Transform AMR table to long format which is a requirement for ggplot
+AMR_percentage_df_long <- AMR_percentage_df %>% gather(AMR, Percentage, PEN_MEN:ERY)
+```
+
+## Setting the order of the plot
+
+```{r}
+# Set AMR order
+AMR_order <- c("TET", "COT", "ERY", "CHL", "PEN_MEN")
+AMR_percentage_df_long$AMR <- factor(AMR_percentage_df_long$AMR, levels = AMR_order)
+
+# Set GPSC order
+gpscs <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12", "13", "15", "16", "18", "23", "26", "31",
+           "32", "37", "44", "47", "50", "61", "70", "95", "113", "386", "657", "Others")
+```
+
+## Plot GPSC1 AMR profile, which is the leftmost plot
+
+This plot will have both x and y-axis label
+
+```{r GPSC1 AMR plot}
+GPSC1_amr <- AMR_percentage_df_long[which(AMR_percentage_df_long$GPSC == "1"), ]
+left_amr_ggplot <-
+  ggplot(GPSC1_amr, aes(x = AMR, y = Percentage)) +
+  geom_bar(stat = "identity", fill = "#f68060", alpha = .6, width = .4) +
+  scale_y_continuous(
+    limits = c(0, 1.2),
+    breaks = seq(0, 1, by = 0.5)
+  ) +
+  coord_flip() +
+  xlab("") +
+  theme_bw() +
+  labs(x = NULL, y = NULL) +
+  ggtitle("GPSC1") +
+  theme(
+    axis.text.y = element_text(size = 50),
+    panel.background = element_rect(fill = "white"),
+    panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+    axis.text.x = element_text(size = 50),
+    plot.title = element_text(size = 50)
+  )
+```
+
+## Plot all other GPSCs AMR profile
+
+```{r}
+for (i in 1:length(gpscs)){
+  gpsc_variable <- paste0("GPSC_", gpscs[i], "_amr")
+  assign(gpsc_variable, AMR_percentage_df_long[which(AMR_percentage_df_long$GPSC == gpscs[i]), ])
+  
+  gpsc_amr_plot_variable <- paste0(gpsc_variable, "_plot")
+  gpsc_title <- paste0("GPSC", gpscs[i])
+  new_gpsc_amr_plot <-
+    ggplot(get(gpsc_variable), aes(x = AMR, y = Percentage)) +
+    geom_bar(stat = "identity", fill = "#f68060", alpha = .6, width = .4) +
+    scale_y_continuous(
+      limits = c(0, 1.2),
+      breaks = seq(0, 1, by = 0.5),
+      labels = label_number(accuracy = 0.1)
+    ) +
+    coord_flip() +
+    labs(x = NULL, y = NULL) +
+    ggtitle(gpsc_title) +
+    theme_bw() +
+    theme(
+      axis.text.y = element_blank(),
+      panel.background = element_rect(fill = "white"),
+      panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+      axis.text.x = element_text(size = 50),
+      plot.title = element_text(size = 50)
+    )
+  
+  assign(gpsc_amr_plot_variable, new_gpsc_amr_plot)
+}
+
+```
+
+## Bind all the AMR profile together
+
+```{r}
+wid <- rep(0.8 / 30, 30)
+output_path <- file.path(base_path, "AMR_plot.png")
+png(output_path, width = 9500, height = 500)
+plot_grid(left_amr_ggplot, GPSC_2_amr_plot, GPSC_3_amr_plot,
+          GPSC_4_amr_plot, GPSC_5_amr_plot, GPSC_6_amr_plot,
+          GPSC_7_amr_plot, GPSC_8_amr_plot, GPSC_9_amr_plot,
+          GPSC_10_amr_plot, GPSC_12_amr_plot, GPSC_13_amr_plot,
+          GPSC_15_amr_plot, GPSC_16_amr_plot, GPSC_18_amr_plot,
+          GPSC_23_amr_plot, GPSC_26_amr_plot, GPSC_31_amr_plot,
+          GPSC_32_amr_plot, GPSC_37_amr_plot, GPSC_44_amr_plot,
+          GPSC_47_amr_plot, GPSC_50_amr_plot, GPSC_61_amr_plot,
+          GPSC_70_amr_plot, GPSC_95_amr_plot, GPSC_113_amr_plot,
+          GPSC_386_amr_plot, GPSC_657_amr_plot, GPSC_Others_amr_plot,
+          align = "h", ncol = 30, rel_widths = c(1.5 / 30, wid))
+dev.off()
+```
