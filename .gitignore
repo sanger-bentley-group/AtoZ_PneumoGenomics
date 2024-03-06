@@ -1,3 +1,9 @@
 .DS_Store
 
-task_2/data_for_microreact.csv
+task_2/merged_data.csv
+
+task_3/AMR*.csv
+task_3/GPSC*.csv
+task_3/In_Silico_Serotype*.csv
+
+task_4/*.png

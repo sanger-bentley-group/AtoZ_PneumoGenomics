@@ -1,10 +1,10 @@
 ## Install and load required packages
 
 ```{r install-load-package}
-# install.packages("dplyr") 
+# install.packages("dplyr")
 # install.packages("readr")
 
-library(dplyr) 
+library(dplyr)
 library(readr)
 ```
 
@@ -14,33 +14,51 @@ library(readr)
 # set base path for working directory
 base_path <- getwd()
 
-# set metadata file name
+# set import file names
 metadata_file_name <- "metadata.csv"
-# set in silico output file name
 in_silico_output_file_name <- "in_silico_output.csv"
+gpsc_colours_file_name <- "gpsc_colours.csv"
+serotype_colours_file_name <- "serotype_colours.csv"
 
-# set metadata file path
+# set file paths
 metadata_file_path <- file.path(base_path, metadata_file_name)
-# set in silico typing file path
 in_silico_output_file_path <- file.path(base_path, in_silico_output_file_name)
+gpsc_colours_file_path <- file.path(base_path, gpsc_colours_file_name)
+serotype_colours_file_path <- file.path(base_path, serotype_colours_file_name)
 
 # load input data
 metadata <- read_csv(metadata_file_path)
 in_silico_output <- read_csv(in_silico_output_file_path)
+gpsc_colours <- read_csv(gpsc_colours_file_path, col_types = cols(GPSC = col_character()))
+serotype_colours <- read_csv(serotype_colours_file_name)
 ```
 
 ## Merge into one dataset and export for Microreact
 
 ```{r merge-export}
 # change the names of the ID columns to be the same
-colnames(in_silico_output)[1] <- "ID" 
+colnames(in_silico_output)[1] <- "ID"
 colnames(metadata)[1] <- "ID"
 
+# Add the colours based on AMR to the In Silico Results
+for (i in grep("_Res", colnames(in_silico_output), value = TRUE)) {
+  in_silico_output[, paste0(i, "__colour")] <- "transparent"
+  in_silico_output[which(in_silico_output[, i] == "R"), paste0(i, "__colour")] <- "#ff2722"
+  in_silico_output[which(in_silico_output[, i] == "S"), paste0(i, "__colour")] <- "#0069ec"
+  in_silico_output[which(in_silico_output[, i] == "I"), paste0(i, "__colour")] <- "#f797b1"
+}
+
 # join the datasets using the ID as the key
-microreact_data <- full_join(metadata, in_silico_output, by = "ID")
+merged_data <- full_join(metadata, in_silico_output, by = "ID")
+
+# Add the colour based on the GPSC
+merged_data <- left_join(merged_data, gpsc_colours, by = "GPSC")
+
+# Add the colour based on the Serotype
+merged_data <- left_join(merged_data, serotype_colours, by = "Serotype")
 
 # export the data ready for Microreact!
-output_file_name <- "data_for_microreact.csv"
+output_file_name <- "merged_data.csv"
 output_path <- file.path(base_path, output_file_name)
-write.csv(microreact_data, output_path, row.names = FALSE)
+write.csv(merged_data, output_path, row.names = FALSE)
 ```
