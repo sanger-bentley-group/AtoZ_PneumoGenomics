@@ -1,1 +1,1 @@
-Please refer to the [pre-workshop handout](<Pre-workshop Handout.pdf>) for more information.
+Please refer to the [pre-workshop handout](<Pre-workshop_Handout.pdf>) for more information.

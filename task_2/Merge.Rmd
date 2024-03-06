@@ -1,0 +1,46 @@
+## Install and load required packages
+
+```{r install-load-package}
+# install.packages("dplyr") 
+# install.packages("readr")
+
+library(dplyr) 
+library(readr)
+```
+
+## Load input data
+
+```{r load-data}
+# set base path for working directory
+base_path <- getwd()
+
+# set metadata file name
+metadata_file_name <- "metadata.csv"
+# set in silico output file name
+in_silico_output_file_name <- "in_silico_output.csv"
+
+# set metadata file path
+metadata_file_path <- file.path(base_path, metadata_file_name)
+# set in silico typing file path
+in_silico_output_file_path <- file.path(base_path, in_silico_output_file_name)
+
+# load input data
+metadata <- read_csv(metadata_file_path)
+in_silico_output <- read_csv(in_silico_output_file_path)
+```
+
+## Merge into one dataset and export for Microreact
+
+```{r merge-export}
+# change the names of the ID columns to be the same
+colnames(in_silico_output)[1] <- "ID" 
+colnames(metadata)[1] <- "ID"
+
+# join the datasets using the ID as the key
+microreact_data <- full_join(metadata, in_silico_output, by = "ID")
+
+# export the data ready for Microreact!
+output_file_name <- "data_for_microreact.csv"
+output_path <- file.path(base_path, output_file_name)
+write.csv(microreact_data, output_path, row.names = FALSE)
+```
