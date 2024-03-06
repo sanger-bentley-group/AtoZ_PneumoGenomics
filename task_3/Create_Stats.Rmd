@@ -1,0 +1,360 @@
+---
+title: "Create Stats"
+output: html_document
+date: "2024-03-05"
+purpose: "Calculate Serotype changes in proportion across three vaccine periods stratifying by vaccine and non-vaccine serotype; Calculate GPSC changes in proportion across three vaccine periods stratifying by vaccine and non-vaccine serotype; Calculate AMR changes in proportion across three vaccine periods"
+---
+
+# Calculate serotype changes in proportion across three vaccine periods stratifying by vaccine and non-vaccine serotype
+
+## Install and load required packages
+
+These are the packages required for analysis using this R script.
+
+```{r install packages}
+#install.packages("plyr")
+#install.packages("pwr")
+
+#Load packages
+library(plyr)
+library(pwr)
+library(readr)
+```
+
+## Load input data
+
+```{r load dataset}
+# set base path for working directory
+base_path <- getwd()
+
+# set import file name
+merged_data_file_name <- "merged_data.csv"
+
+# set data file path
+merged_data_file_path <- file.path(base_path, merged_data_file_name)
+
+# load input data
+merged_data <- read_csv(merged_data_file_path)
+
+# rename column Serotype to In_Silico_Serotype for the script
+colnames(merged_data)[colnames(merged_data) == "Serotype"] <- "In_Silico_Serotype"
+
+# Subset the data to include the information you need
+data <- subset(merged_data, select = c("In_Silico_Serotype", "Vaccine_Period", "Vaccine_Status"))
+```
+
+## Create an output dataframe to store the results
+
+```{r Output dataframe}
+In_Silico_Serotype_Pre_PostPCV <- data.frame("Vaccine_Period" = 0, "Vaccine_Status" = 0, "In_Silico_Serotype" = 0, "Period1_In_Silico_Serotype" = 0, "Period1_total" = 0, "Period2_In_Silico_Serotype" = 0, "Period2_total" = 0, "p" = 0)
+Pre_In_Silico_Serotype <- 0
+Pre_other <- 0
+Post_In_Silico_Serotype <- 0
+Post_other <- 0
+Pre_In_Silico_Serotype_proportion <- 0
+Pre_other_proportion <- 0
+Post_In_Silico_Serotype_proportion <- 0
+Post_other_proportion <- 0
+```
+
+## Define the Serotypes, vaccine periods and vaccine status (vaccine serotye - PCV and non-vaccine serotype -NVT)
+
+```{r Define Serotypes, PCV and NVTs}
+In_Silico_Serotypes <- unique(data$In_Silico_Serotype) # define the serotypes
+vaccine_period <- unique(data$Vaccine_Period) # define the vaccine periods
+vaccine_status <- unique(data$Vaccine_Status) # define the vaccine status
+```
+
+## Subset the data into PCV and NVTs, then into vaccine periods then count and calculate the proportion of each serotypes found among PCVs and NVTs for each vaccine. Perform chi-square test and calculate the power and significance.Adding 0.001 ensures that the denominator is not zero.
+
+```{r Count and Proportions; Power test and Fishers exact test}
+
+# iterate over and subset the data for each vaccine status
+for (k in vaccine_status) {
+  data_status <- subset(data, data$Vaccine_Status == k)
+  # iterate over the vaccine periods data subset into the vaccine statuses
+  for (j in vaccine_period) {
+    data_status_period <- subset(data_status, data_status$Vaccine_Period != j)
+    pcv <- unique(data_status_period$Vaccine_Period)
+    for (i in In_Silico_Serotypes) {
+      data_status_period_In_Silico_Serotype <- subset(data_status_period, data_status_period$In_Silico_Serotype == i)
+      Pre_In_Silico_Serotype <- nrow(subset(data_status_period_In_Silico_Serotype, Vaccine_Period == pcv[1][1]))
+      Post_In_Silico_Serotype <- nrow(subset(data_status_period_In_Silico_Serotype, Vaccine_Period == pcv[2][1]))
+      Pre_other <- nrow(subset(data_status_period, In_Silico_Serotype != i & Vaccine_Period == pcv[1][1]))
+      Post_other <- nrow(subset(data_status_period, In_Silico_Serotype != i & Vaccine_Period == pcv[2][1]))
+      
+      Pre_In_Silico_Serotype_proportion <- Pre_In_Silico_Serotype / (Pre_In_Silico_Serotype + Pre_other + 0.001) + 0.001
+      Post_In_Silico_Serotype_proportion <- Post_In_Silico_Serotype / (Post_In_Silico_Serotype + Post_other + 0.001) + 0.001
+      Pre_other_proportion <- Pre_other / (Pre_In_Silico_Serotype + Pre_other + 0.001) + 0.001
+      Post_other_proportion <- Post_other / (Post_In_Silico_Serotype + Post_other + 0.001) + 0.001
+      
+      In_Silico_Serotype <- matrix(c(Post_In_Silico_Serotype, Pre_In_Silico_Serotype, Post_other, Pre_other), nrow = 2, byrow = TRUE) # create matrix to store counts
+      In_Silico_Serotype_proportion <- matrix(c(Post_In_Silico_Serotype_proportion, Pre_In_Silico_Serotype_proportion, Post_other_proportion, Pre_other_proportion), nrow = 2, byrow = TRUE) # create matrix to store the proportions
+      pwr <- pwr.chisq.test(w = ES.w2(In_Silico_Serotype_proportion), power = 0.8, df = 1, sig.level = 0.05) # calculate the power of the chi-square test with power and significance level
+      
+      # check if the count is greater than the calculated power
+      if (sum(In_Silico_Serotype) > pwr$N) {
+        p <- fisher.test(In_Silico_Serotype, alternative)$p.value # Fishers exact test using the counts of serotypes
+        pcv_compare <- unique(data_status_period$Vaccine_Period)
+        In_Silico_Serotype_Pre_PostPCV <- rbind(In_Silico_Serotype_Pre_PostPCV, c(toString(pcv_compare), k, i, Pre_In_Silico_Serotype, Pre_In_Silico_Serotype + Pre_other, Post_In_Silico_Serotype, Post_In_Silico_Serotype + Post_other, p))
+      }
+    }
+  }
+}
+
+In_Silico_Serotype_Pre_PostPCV <- In_Silico_Serotype_Pre_PostPCV[-1, ]
+```
+
+## Write the results stratified by vaccine period to a csv file.
+
+```{r Stratifying the results and write the output}
+In_Silico_Serotype_VT_Pre_PostPCV <- subset(In_Silico_Serotype_Pre_PostPCV, Vaccine_Status == "PCV")
+In_Silico_Serotype_VT_Pre_PostPCV$newcolumn <- p.adjust(In_Silico_Serotype_VT_Pre_PostPCV$p, "BH", n = nrow(In_Silico_Serotype_VT_Pre_PostPCV))
+names(In_Silico_Serotype_VT_Pre_PostPCV)[names(In_Silico_Serotype_VT_Pre_PostPCV) == "newcolumn"] <- "adjusted_p"
+write.csv(In_Silico_Serotype_VT_Pre_PostPCV, file.path(base_path, "In_Silico_Serotype_VT_Pre_PostPCV.csv"), row.names = FALSE)
+
+In_Silico_Serotype_NVT_Pre_PostPCV <- subset(In_Silico_Serotype_Pre_PostPCV, Vaccine_Status == "NVT")
+In_Silico_Serotype_NVT_Pre_PostPCV$newcolumn <- p.adjust(In_Silico_Serotype_NVT_Pre_PostPCV$p, "BH", n = nrow(In_Silico_Serotype_NVT_Pre_PostPCV))
+names(In_Silico_Serotype_NVT_Pre_PostPCV)[names(In_Silico_Serotype_NVT_Pre_PostPCV) == "newcolumn"] <- "adjusted_p"
+write.csv(In_Silico_Serotype_NVT_Pre_PostPCV, file.path(base_path, "In_Silico_Serotype_NVT_Pre_PostPCV.csv"), row.names = FALSE)
+```
+
+------------------------------------------------------------------------
+
+# Calculate GPSC changes in proportion across three vaccine periods stratifying by vaccine and non-vaccine serotype
+
+## Install and load required packages
+
+These are the packages required for analysis using this R script.
+
+```{r install packages}
+#install.packages("epiR")
+#install.packages("plyr")
+#install.packages("pwr")
+
+#Load packages
+library(epiR)
+library(plyr)
+library(pwr)
+library(readr)
+```
+
+## Load input data
+
+```{r load dataset}
+# set base path for working directory
+base_path <- getwd()
+
+# set import file name
+merged_data_file_name <- "merged_data.csv"
+
+# set data file path
+merged_data_file_path <- file.path(base_path, merged_data_file_name)
+
+# load input data
+merged_data <- read_csv(merged_data_file_path)
+
+# subset the data to include the information you need
+data <- subset(merged_data, select = c("GPSC", "Vaccine_Period", "Vaccine_Status"))
+```
+
+## Create an output dataframe to store the results
+
+```{r Output dataframe}
+GPSC_Pre_PostPCV <- data.frame("Vaccine_Period" = 0, "Vaccine_Status" = 0, "GPSC" = 0, "Period1_GPSC" = 0, "Period1_total" = 0, "Period2_GPSC" = 0, "Period2_total" = 0, "p" = 0)
+Pre_GPSC <- 0
+Pre_other <- 0
+Post_GPSC <- 0
+Post_other <- 0
+Pre_GPSC_proportion <- 0
+Pre_other_proportion <- 0
+Post_GPSC_proportion <- 0
+Post_other_proportion <- 0
+```
+
+## Define the GPSCs, vaccine periods and vaccine status (vaccine serotype - PCV and non-vaccine serotype -NVT)
+
+```{r Define GPSCs, PCV and NVTs}
+GPSCs <- unique(data$GPSC) # define the GPSCs
+vaccine_period <- unique(data$Vaccine_Period) # define the vaccine periods
+vaccine_status <- unique(data$Vaccine_Status) # define the the vaccine status
+```
+
+## Subset the data into PCV and NVTs, then into vaccine periods then count and calculate the proportion of each GPSC found among PCVs and NVTs for each vaccine. Perform chi-square test and calculate the power and significance. Adding 0.001 ensures that the denominator is not zero.
+
+```{r Count and Proportions; Power test and Fishers exact test}
+# iterate over and subset the data for each vaccine status
+for (k in vaccine_status) {
+  # iterate over the vaccine periods data subset into the vaccine statuses
+  data_status <- subset(data, data$Vaccine_Status == k)
+  for (j in vaccine_period) {
+    data_status_period <- subset(data_status, data_status$Vaccine_Period != j)
+    pcv <- unique(data_status_period$Vaccine_Period)
+    
+    # iterate over each serotype subset into the vaccine statuses and vaccine periods; and calculate proportions
+    for (i in GPSCs) {
+      data_status_period_GPSC <- subset(data_status_period, data_status_period$GPSC == i)
+      Pre_GPSC <- nrow(subset(data_status_period_GPSC, Vaccine_Period == pcv[1][1]))
+      Post_GPSC <- nrow(subset(data_status_period_GPSC, Vaccine_Period == pcv[2][1]))
+      Pre_other <- nrow(subset(data_status_period, GPSC != i & Vaccine_Period == pcv[1][1]))
+      Post_other <- nrow(subset(data_status_period, GPSC != i & Vaccine_Period == pcv[2][1]))
+      
+      Pre_GPSC_proportion <- Pre_GPSC / (Pre_GPSC + Pre_other + 0.001) + 0.001
+      Post_GPSC_proportion <- Post_GPSC / (Post_GPSC + Post_other + 0.001) + 0.001
+      Pre_other_proportion <- Pre_other / (Pre_GPSC + Pre_other + 0.001) + 0.001
+      Post_other_proportion <- Post_other / (Post_GPSC + Post_other + 0.001) + 0.001
+      
+      GPSC <- matrix(c(Post_GPSC, Pre_GPSC, Post_other, Pre_other), nrow = 2, byrow = TRUE) # create matrix to store counts
+      GPSC_proportion <- matrix(c(Post_GPSC_proportion, Pre_GPSC_proportion, Post_other_proportion, Pre_other_proportion), nrow = 2, byrow = TRUE) # create matrix to store the proportions
+      pwr <- pwr.chisq.test(w = ES.w2(GPSC_proportion), power = 0.8, df = 1, sig.level = 0.05) # calculate the power of the chi-square test with power and significance level
+      
+      # Power test; check if the count is greater than the calculated power
+      if (sum(GPSC) > pwr$N) {
+        p <- fisher.test(GPSC, alternative)$p.value # Fishers exact test using the counts of serotypes
+        pcv_compare <- unique(data_status_period$Vaccine_Period)
+        GPSC_Pre_PostPCV <- rbind(GPSC_Pre_PostPCV, c(toString(pcv_compare), k, i, Pre_GPSC, Pre_GPSC + Pre_other, Post_GPSC, Post_GPSC + Post_other, p))
+      }
+    }
+  }
+}
+GPSC_Pre_PostPCV <- GPSC_Pre_PostPCV[-1, ]
+
+```
+
+## Write the results stratified by vaccine period to a csv file.
+
+```{r Stratifying the results and write the output}
+GPSC_VT_Pre_PostPCV <- subset(GPSC_Pre_PostPCV, Vaccine_Status == "PCV")
+GPSC_VT_Pre_PostPCV$newcolumn <- p.adjust(GPSC_VT_Pre_PostPCV$p, "BH", n = nrow(GPSC_VT_Pre_PostPCV))
+names(GPSC_VT_Pre_PostPCV)[names(GPSC_VT_Pre_PostPCV) == "newcolumn"] <- "adjusted_p"
+write.csv(GPSC_VT_Pre_PostPCV, file.path(base_path, "GPSC_VT_Pre_PostPCV.csv"), row.names = FALSE)
+
+GPSC_NVT_Pre_PostPCV <- subset(GPSC_Pre_PostPCV, Vaccine_Status == "NVT")
+GPSC_NVT_Pre_PostPCV$newcolumn <- p.adjust(GPSC_NVT_Pre_PostPCV$p, "BH", n = nrow(GPSC_NVT_Pre_PostPCV))
+names(GPSC_NVT_Pre_PostPCV)[names(GPSC_NVT_Pre_PostPCV) == "newcolumn"] <- "adjusted_p"
+write.csv(GPSC_NVT_Pre_PostPCV, file.path(base_path, "GPSC_NVT_Pre_PostPCV.csv"), row.names = FALSE)
+```
+
+------------------------------------------------------------------------
+
+# Calculate AMR changes in proportion across three vaccine periods
+
+## Install and load required packages
+
+These are the packages required for analysis using this R script.
+
+```{r install packages}
+#install.packages("plyr")
+#install.packages("pwr")
+
+#Load packages
+library(plyr)
+library(pwr)
+library(readr)
+```
+
+## Load input data
+
+```{r load dataset}
+# set base path for working directory
+base_path <- getwd()
+
+# set import file name
+merged_data_file_name <- "merged_data.csv"
+
+# set data file path
+merged_data_file_path <- file.path(base_path, merged_data_file_name)
+
+# load input data
+merged_data <- read_csv(merged_data_file_path)
+
+#Subset the data to include the information you need
+AR_props <- subset(merged_data, select = c("Vaccine_Period", "Vaccine_Status", grep("PEN_Res.Meningital.$", colnames(merged_data), value = TRUE), grep("CHL_Res$", colnames(merged_data), value = TRUE), grep("COT_Res$", colnames(merged_data), value = TRUE), grep("ERY_Res$", colnames(merged_data), value = TRUE), grep("TET_Res$", colnames(merged_data), value = TRUE)))
+
+#Convert back to a data frame
+AR_props <- data.frame(AR_props)
+# To analyse the data considering consider NVTs only or VTs (PCV serotypes) only, subset the data to include only NVTs and VTs.
+#AR_props <- subset(AR_props, AR_props$Vaccine_Status %in% c("NVT"))
+#AR_props <- subset(AR_props, AR_props$Vaccine_Status %in% c("PCV"))
+```
+
+## Create an output dataframe to store the results
+
+```{r Output dataframe}
+AR_Pre_PostPCV <- data.frame("Vaccine" = 0, "Vaccine_Period" = 0, "Antibiotic" = 0, "Pre-PCV_R" = 0, "Pre-PCV_total" = 0, "Post-PCV_R" = 0, "Post-PCV_total" = 0, "p" = 0)
+Pre_R <- 0
+Pre_S <- 0
+Post_R <- 0
+Post_S <- 0
+Pre_R_proportion <- 0
+Pre_S_proportion <- 0
+Post_R_proportion <- 0
+Post_S_proportion <- 0
+non_susceptible <- c("I", "R")
+```
+
+## Define the vaccine periods
+
+```{r Define the vaccine periods}
+vaccine_period <- unique(AR_props$Vaccine_Period)
+```
+
+## To evaluate the changes in proportion count resistant and susceptible samples in the different vaccines periods to be compared. Then calculate the proportion. Perform chi-square test and calculate the power and significance.Adding 0.001 ensures that the denominator is not zero.
+
+```{r Calculate the proportion of resistant isolates in the vaccine periods;Power test and Fishers exact test}
+for (k in vaccine_period){
+  AR_props_vaccine_period <- subset(AR_props, AR_props$Vaccine_Period != k)
+  # calculate proportions of non-susceptible and susceptible samples for the vaccine periods
+  for (j in grep("_Res", colnames(AR_props_vaccine_period), value = TRUE)) {
+    Pre_Post_AR <- subset(AR_props_vaccine_period, select = c(j, "Vaccine_Period"))
+    pcv <- unique(AR_props_vaccine_period$Vaccine_Period)
+    
+    Pre_R <- nrow(subset(Pre_Post_AR, Vaccine_Period == pcv[1][1] & Pre_Post_AR[, 1] %in% c("I", "R")))
+    Pre_S <- nrow(subset(Pre_Post_AR, Vaccine_Period == pcv[1][1] & Pre_Post_AR[, 1] == "S"))
+    Post_R <- nrow(subset(Pre_Post_AR, Vaccine_Period == pcv[2][1] & Pre_Post_AR[, 1] %in% c("I", "R")))
+    Post_S <- nrow(subset(Pre_Post_AR, Vaccine_Period == pcv[2][1] & Pre_Post_AR[, 1] == "S"))
+    
+    Pre_R_proportion <- Pre_R / (Pre_R + Pre_S + 0.001) + 0.001
+    Pre_S_proportion <- Pre_S / (Pre_R + Pre_S + 0.001) + 0.001
+    Post_R_proportion <- Post_R / (Post_R + Post_S + 0.001) + 0.001
+    Post_S_proportion <- Post_S / (Post_R + Post_S + 0.001) + 0.001
+    
+    AR <- matrix(c(Pre_R, Pre_S, Post_R, Post_S), nrow = 2, byrow = TRUE) # create matrix to store counts of non-susceptible and susceptible samples for the vaccine periods
+    AR_proportion <- matrix(c(Pre_R_proportion, Pre_S_proportion, Post_R_proportion, Post_S_proportion), nrow = 2, byrow = TRUE) # create matrix to store the calculates proportions
+    pwr <- pwr.chisq.test(w = ES.w2(AR_proportion), power = 0.8, df = 1, sig.level = 0.05) # calculate the power of the chi-square test with power and significance level
+    
+    # check the power (pwr) of the count of the resistant isolates before extracting your results.
+    # check if the count is greater than the calculated power
+    if (sum(AR) > pwr$N) {
+      rownames(AR) <- pcv # assign the row names as the different vaccine periods
+      colsum_AR <- colSums(AR) # total count of non-susceptible and susceptible samples in the vaccine periods
+      row <- AR[1, , drop = FALSE] # extract the count of samples
+      by2 <- matrix(c(row[1, 1], row[1, 2], colsum_AR[1] - row[1, 1], colsum_AR[2] - row[1, 2]), ncol = 2, byrow = TRUE) # contingency table for fisher's test
+      p <- fisher.test(by2, alternative)$p.value # Fishers test on the contingency table by2
+      pcv_compare <- unique(AR_props_vaccine_period$Vaccine_Period)
+      AR_Pre_PostPCV <- rbind(AR_Pre_PostPCV, c(toString(pcv_compare), k, j, Pre_R, Pre_R + Pre_S, Post_R, Post_R + Post_S, p)) # matrix to store the results
+    }
+  }
+}
+
+AR_Pre_PostPCV  <-  AR_Pre_PostPCV [, -2]
+```
+
+## Write the results stratified by vaccine period to a csv file.
+
+```{r Stratifying the results and write the output}
+AR_Pre_PCV7 <- subset(AR_Pre_PostPCV, Vaccine == "Pre-PCV, PCV7")
+AR_Pre_PCV7$newcolumn <- p.adjust(AR_Pre_PCV7$p, "BH", n = nrow(AR_Pre_PCV7))
+names(AR_Pre_PCV7)[names(AR_Pre_PCV7) == "newcolumn"] <- "adjusted_p"
+write.csv(AR_Pre_PCV7, file.path(base_path, "AMR_Pre_PCV7.csv"), row.names = FALSE)
+
+AR_Pre_PCV13 <- subset(AR_Pre_PostPCV, Vaccine == "Pre-PCV, PCV13")
+AR_Pre_PCV13$newcolumn <- p.adjust(AR_Pre_PCV13$p, "BH", n = nrow(AR_Pre_PCV13))
+names(AR_Pre_PCV13)[names(AR_Pre_PCV13) == "newcolumn"] <- "adjusted_p"
+write.csv(AR_Pre_PCV13, file.path(base_path, "AMR_Pre_PCV13.csv"), row.names = FALSE)
+
+AR_PCV7_PCV13 <- subset(AR_Pre_PostPCV, Vaccine == "PCV7, PCV13")
+AR_PCV7_PCV13$newcolumn <- p.adjust(AR_PCV7_PCV13$p, "BH", n = nrow(AR_PCV7_PCV13))
+names(AR_PCV7_PCV13)[names(AR_PCV7_PCV13) == "newcolumn"] <- "adjusted_p"
+write.csv(AR_PCV7_PCV13, file.path(base_path, "AMR_PCV7_PCV13.csv"), row.names = FALSE)
+```
