@@ -176,7 +176,7 @@ names(filled_patterns) <- GPS_freq_table_sero_code_merge_gpsc$Vtype
 ## Generate GPSC-Serotype-Vaccine_Period proportion plot
 
 ```{r}
-GPS_freq_table_plot <- ggplot(GPS_freq_table_sero_code_merge_gpsc, aes(x = Vaccine_Period, y = Proportion, fill = Serotype, pattern = Vtype)) + #fill=Serotype, pattern=Serotype
+GPS_freq_table_plot <- ggplot(GPS_freq_table_sero_code_merge_gpsc, aes(x = Vaccine_Period, y = Count, fill = Serotype, pattern = Vtype)) + #fill=Serotype, pattern=Serotype
   geom_bar_pattern(position = "stack", stat = "identity", pattern_density = 0.2, pattern_spacing = 0.2, pattern_key_scale_factor = 1.2, pattern_size = 0) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 20),
         axis.text.y = element_text(size = 25),
@@ -193,7 +193,7 @@ GPS_freq_table_plot <- ggplot(GPS_freq_table_sero_code_merge_gpsc, aes(x = Vacci
         panel.background = element_blank(),
         legend.key.size = unit(0.8, "cm")) +
   xlab("GPSC") +
-  ylim(c(0, 0.3)) +
+  #ylim(c(0, 0.3)) +
   facet_grid(~ GPSC, switch = "x") +
   scale_fill_manual(values = filled_colours) +
   scale_pattern_manual(values = filled_patterns, guide = "none") +
