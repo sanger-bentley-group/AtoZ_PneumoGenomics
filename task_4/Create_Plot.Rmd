@@ -1,7 +1,7 @@
 ---
 title: "Create Plot"
 output: html_document
-date: "2024-03-05"
+date: "2024-03-11"
 purpose: Generating the prevalence of GPSC and Serotype in different vaccination periods, and AMR profile for each GPSC
 ---
 
@@ -13,7 +13,7 @@ purpose: Generating the prevalence of GPSC and Serotype in different vaccination
 
 These are the packages required for the R script session.
 
-```{r install packages}
+```{r install_packages_1}
 #install.packages("ggplot2")
 #install.packages("ggpattern")
 
@@ -25,7 +25,7 @@ library(ggpattern)
 
 This function is to generate a frequency table based on **GPSC**, **Serotype** and **Vaccine_Period**.
 
-```{r load functions}
+```{r load_functions_1}
 Generate_GPSC_Serotype_Vaccine_Freqtable <- function(metadata_df,
                                                      pair_colname1 = "GPSC", pair_colname2 = "In_Silico_Serotype",
                                                      pair_colname3 = "Vaccine_Period",
@@ -82,7 +82,7 @@ Generate_GPSC_Serotype_Vaccine_Freqtable <- function(metadata_df,
 The `serotype__colours_patterns.csv` file include the information about the colour coding for each serotype as well as the vaccine type information.\
 Note that the vaccine type information is based on PCV13 implemented in Argentina, which might need some adjustment for your studied population.
 
-```{r load dataset}
+```{r load_dataset_1}
 # set base path for working directory
 base_path <- getwd()
 
@@ -104,7 +104,7 @@ serotype_colorcode <- read.table(serotype_colorcode_file_path,
 
 ## Check if terminology is consistent
 
-```{r check terms}
+```{r check_terms_1}
 data_frame[which(data_frame$GPSC == "_"), "GPSC"] <- "Others"
 data_frame[which(data_frame$GPSC == "904;9"), "GPSC"] <- "9"
 data_frame[which(data_frame$In_Silico_Serotype == "_"), "In_Silico_Serotype"] <- "NT"
@@ -119,7 +119,7 @@ In the output table, each row is a unique combination of GPSC-Serotype-Vaccine_P
 -   Serotype: "In_Silico_Serotype", otherwise please specify the column names by *pair_colname2="Your_Serotype_Column_Name"*\
 -   Vaccine_Period: "Vaccine_Period", otherwise please specify the column names by *pair_colname2="Your_Vaccine_Period_Column_Name"*
 
-```{r}
+```{r generate_pair_frequency_table_1}
 ## Need to generate/transform the dataframe to each row as a GPSC-Serotype-Vaccine_Period pair with corresponding count/proportion
 GPS_freq_table <- Generate_GPSC_Serotype_Vaccine_Freqtable(metadata_df = data_frame,
                                                            pair_colname1 = "GPSC",
@@ -139,7 +139,7 @@ head(GPS_freq_table_sero_code_merge_gpsc)
 
 ## Setting the axis order for the plot
 
-```{r}
+```{r set_plot_label_order_1}
 ### Set GPSC order
 GPSC_order <- c(target_gpsc, "Others")
 GPS_freq_table_sero_code_merge_gpsc$GPSC <- factor(GPS_freq_table_sero_code_merge_gpsc$GPSC, levels = GPSC_order)
@@ -175,7 +175,7 @@ names(filled_patterns) <- GPS_freq_table_sero_code_merge_gpsc$Vtype
 
 ## Generate GPSC-Serotype-Vaccine_Period proportion plot
 
-```{r}
+```{r plot_1}
 GPS_freq_table_plot <- ggplot(GPS_freq_table_sero_code_merge_gpsc, aes(x = Vaccine_Period, y = Count, fill = Serotype, pattern = Vtype)) + #fill=Serotype, pattern=Serotype
   geom_bar_pattern(position = "stack", stat = "identity", pattern_density = 0.2, pattern_spacing = 0.2, pattern_key_scale_factor = 1.2, pattern_size = 0) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 20),
@@ -204,7 +204,7 @@ GPS_freq_table_plot <- ggplot(GPS_freq_table_sero_code_merge_gpsc, aes(x = Vacci
 
 ## Save plot to .png file
 
-```{r}
+```{r save_plot_1}
 output_path <- file.path(base_path, "GPS_freq_table_plot.png")
 png(output_path, width = 2500, height = 1000)
 GPS_freq_table_plot
@@ -219,7 +219,7 @@ dev.off()
 
 These are the packages required for the R script session.
 
-```{r install packages}
+```{r install_packages_2}
 #install.packages("ggplot2")
 #install.packages("dplyr")
 #install.packages("tidyr")
@@ -239,7 +239,7 @@ library(cowplot)
 
 This function is to generate a frequency table based on **GPSC**, **Serotype** and, **Vaccine_Period**.
 
-```{r load functions}
+```{r load_functions_2}
 percent_amr <- function(amr_df, amr, ris = c("I", "R")) {
   num_pen_men_r <- length(which(amr_df[, amr] %in% ris))
   pen_men_percent <- num_pen_men_r / nrow(amr_df)
@@ -249,7 +249,7 @@ percent_amr <- function(amr_df, amr, ris = c("I", "R")) {
 
 ## Load input data
 
-```{r load dataset}
+```{r load_dataset_2}
 # set base path for working directory
 base_path <- getwd()
 
@@ -277,7 +277,7 @@ AMR_data_frame_merge_gpsc[which(!AMR_data_frame_merge_gpsc$GPSC %in% target_gpsc
 
 ## Generate GPSC-AMR_percentage table
 
-```{r AMR percentage table}
+```{r AMR_percentage_table_2}
 output_colnames <- c("GPSC", "PEN_MEN", "CHL", "TET", "COT", "ERY")
 unique_gpsc <- unique(AMR_data_frame_merge_gpsc$GPSC)
 dsize <- matrix(0, nrow = length(unique_gpsc), ncol = ncol(AMR_data_frame))
@@ -314,7 +314,7 @@ AMR_percentage_df_long <- AMR_percentage_df %>% gather(AMR, Percentage, PEN_MEN:
 
 ## Setting the order of the plot
 
-```{r}
+```{r set_order_2}
 # Set AMR order
 AMR_order <- c("TET", "COT", "ERY", "CHL", "PEN_MEN")
 AMR_percentage_df_long$AMR <- factor(AMR_percentage_df_long$AMR, levels = AMR_order)
@@ -328,7 +328,7 @@ gpscs <- c("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12", "13", "15", 
 
 This plot will have both x and y-axis label
 
-```{r GPSC1 AMR plot}
+```{r GPSC1_AMR_plot_2}
 GPSC1_amr <- AMR_percentage_df_long[which(AMR_percentage_df_long$GPSC == "1"), ]
 left_amr_ggplot <-
   ggplot(GPSC1_amr, aes(x = AMR, y = Percentage)) +
@@ -353,7 +353,7 @@ left_amr_ggplot <-
 
 ## Plot all other GPSCs AMR profile
 
-```{r}
+```{r AMR_plots_2}
 for (i in 1:length(gpscs)){
   gpsc_variable <- paste0("GPSC_", gpscs[i], "_amr")
   assign(gpsc_variable, AMR_percentage_df_long[which(AMR_percentage_df_long$GPSC == gpscs[i]), ])
@@ -387,7 +387,7 @@ for (i in 1:length(gpscs)){
 
 ## Bind all the AMR profile together
 
-```{r}
+```{r bind_plots_2}
 wid <- rep(0.8 / 30, 30)
 output_path <- file.path(base_path, "AMR_plot.png")
 png(output_path, width = 9500, height = 500)
