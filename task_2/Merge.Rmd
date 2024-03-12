@@ -29,7 +29,7 @@ serotype_colours_file_path <- file.path(base_path, serotype_colours_file_name)
 # load input data
 metadata <- read_csv(metadata_file_path)
 in_silico_output <- read_csv(in_silico_output_file_path)
-gpsc_colours <- read_csv(gpsc_colours_file_path, col_types = cols(GPSC = col_character()))
+gpsc_colours <- read_csv(gpsc_colours_file_path)
 serotype_colours <- read_csv(serotype_colours_file_name)
 ```
 

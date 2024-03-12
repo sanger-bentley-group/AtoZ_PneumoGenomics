@@ -6,7 +6,7 @@ Serotype,Serotype__colour
 5,#0cc44f
 06A,#bd009a
 6E(6A),#bd009a
-6B,#3c9f00
+06B,#3c9f00
 6E(6B),#3c9f00
 6C,#2651d6
 6D,#9bb500
@@ -108,7 +108,4 @@ spare4,#776700
 20B,#cfc97e
 12A,#e90c50
 25A,#f1b1d6
-19AF,transparent
 _,transparent
-serogroup 24,transparent
-SEROBA FAILURE,transparent
