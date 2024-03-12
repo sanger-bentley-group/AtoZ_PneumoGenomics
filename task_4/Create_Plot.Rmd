@@ -155,7 +155,7 @@ GPS_freq_table_sero_code_merge_gpsc[which(GPS_freq_table_sero_code_merge_gpsc$Se
 GPS_freq_table_sero_code_merge_gpsc[which(GPS_freq_table_sero_code_merge_gpsc$Serotype == "23B1"), "Serotype"] <- "23B" 
 
 
-PCV7_serotype <- c("4", "6E(6B)", "09V", "14", "18C", "19F", "23F")
+PCV7_serotype <- c("4", "06B", "09V", "14", "18C", "19F", "23F")
 PCV13_serotype <- c("1", "3", "5", "06A", "7F", "19A")
 PCV_serotype <- c(PCV7_serotype, PCV13_serotype)
 all_serotype <- unique(GPS_freq_table_sero_code_merge_gpsc$Serotype)
